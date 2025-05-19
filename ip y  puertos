@@ -1,0 +1,8 @@
+IP Memoria: 127.0.0.1
+Puerto Kernel->Memoria: 1000+
+Puerto CPU->Memoria: 2000+
+
+IP Kernel: 127.0.0.1
+Puerto CPU->Kernel (ordenes): 3000+
+Puerto CPU->Kernel (interrupciones): 4000+
+Puerto IO->Kernel: 5000+
