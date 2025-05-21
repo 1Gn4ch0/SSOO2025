@@ -250,6 +250,12 @@ bool consultarEntradaProceso(PCB* proceso)
 	paqueteMemoria->orden = 0;
 	paqueteMemoria->tamañoArchivo = proceso->size;
 	paqueteMemoria->PID = proceso->PID;
+
+	paqueteMemoria->sizeNombre = strlen(proceso->name)+1;
+	paqueteMemoria->nombreArchivo = malloc(paqueteMemoria->sizeNombre);
+	memcpy(paqueteMemoria->nombreArchivo, proceso->name, paqueteMemoria->sizeNombre);
+
+
 	int confirmacion = consultaMemoria(logger, Kconfig, paqueteMemoria);
 	free(&paqueteMemoria);
 	if(confirmacion==0){

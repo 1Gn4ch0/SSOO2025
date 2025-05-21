@@ -36,7 +36,22 @@ void enviarConsulta(t_log* logger, int conexion, PaqueteProceso* proceso)
     switch (proceso->orden){
         case 0:
             log_info(logger,"Enviando solicitud de inicio de proceso");
-            send(conexion, proceso, 3*sizeof(int), 0);
+
+            //Extraido del tp0
+	        void* magic = malloc(proceso->sizeNombre + 4*sizeof(int));
+	        int desplazamiento = 0;
+	        memcpy(magic + desplazamiento, &(proceso->orden), sizeof(int));
+	        desplazamiento+= sizeof(int);
+            memcpy(magic + desplazamiento, &(proceso->PID), sizeof(int));
+	        desplazamiento+= sizeof(int);
+            memcpy(magic + desplazamiento, &(proceso->tamañoArchivo), sizeof(int));
+	        desplazamiento+= sizeof(int);
+            memcpy(magic + desplazamiento, &(proceso->sizeNombre), sizeof(int));
+	        desplazamiento+= sizeof(int);
+            memcpy(magic + desplazamiento, proceso->nombreArchivo, proceso->sizeNombre);
+	        desplazamiento+= paquete->buffer->size;
+
+            send(conexion, magic, proceso->sizeNombre + 4*sizeof(int), 0);
         break;
         case 1:
             log_info(logger,"Enviando mensaje de finalizacion de proceso");

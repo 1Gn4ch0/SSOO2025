@@ -18,6 +18,8 @@ typedef struct
     int orden;
     int PID;
     int tamañoArchivo;
+    int sizeNombre;
+    char* nombreArchivo;
 } PaqueteProceso;
 
 //----------------CLIENT----------------//
