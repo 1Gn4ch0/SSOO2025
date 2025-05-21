@@ -3,9 +3,13 @@
 void* administradorCPU(void* arg)
 {
 	paqueteCPU* paquete = (paqueteCPU*)arg;
+	sem_post(&mutIn1);
 	t_log* logger = paquete->logger;
-    char* puertoOrdenes = paquete->puertoOrdenes;
-    char* puertoInterrupcciones = paquete->puertoInterrupciones;
+    const char* puertoOrdenes = paquete->puertoOrdenes;
+    const char* puertoInterrupcciones = paquete->puertoInterrupciones;
+
+	log_debug(logger, puertoOrdenes);
+	log_debug(logger, puertoInterrupcciones);
 
     int socketOrdenesAbierto = abrirSocket(puertoOrdenes);
     int socketInterrupccionesAbierto = abrirSocket(puertoInterrupcciones);

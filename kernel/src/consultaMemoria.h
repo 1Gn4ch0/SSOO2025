@@ -15,9 +15,9 @@
 //----------------STRUCT----------------//
 typedef struct
 {
+    int orden;
     int PID;
     int tamañoArchivo;
-    int orden;
 } PaqueteProceso;
 
 //----------------CLIENT----------------//

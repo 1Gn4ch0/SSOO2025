@@ -25,6 +25,12 @@ typedef struct
     t_log* logger;
 } paqueteIO;
 
+typedef struct
+{
+    int size;
+    char* nombre;
+} handshake;
+
 //---------------FUNCIONES--------------//
 void* administradorIO(void* arg);
 int abrirConexion(t_log* logger, char *puerto);

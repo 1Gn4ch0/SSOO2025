@@ -36,16 +36,16 @@ void enviarConsulta(t_log* logger, int conexion, PaqueteProceso* proceso)
     switch (proceso->orden){
         case 0:
             log_info(logger,"Enviando solicitud de inicio de proceso");
-            send(conexion, proceso, sizeof(proceso), 0);
+            send(conexion, proceso, 3*sizeof(int), 0);
         break;
         case 1:
             log_info(logger,"Enviando mensaje de finalizacion de proceso");
             int finalizacion = 1;
-            send(conexion, finalizacion, sizeof(finalizacion), 0);
+            send(conexion, finalizacion, sizeof(int), 0);
         break;
         case 2:
             log_info(logger,"Enviando syscall DUMP_MEMORY");
-            send(conexion, proceso, sizeof(proceso), 0);
+            send(conexion, proceso, 3*sizeof(int), 0);
         break;
         default:
             log_error(logger,"ID de consulta a Memoria desconocida");
@@ -56,7 +56,7 @@ void enviarConsulta(t_log* logger, int conexion, PaqueteProceso* proceso)
 int esperarConfirmacion(int conexion)
 {
     int confirmacion;
-    recv(conexion, &confirmacion, sizeof(confirmacion), MSG_WAITALL);
+    recv(conexion, &confirmacion, sizeof(int), MSG_WAITALL);
     close(conexion);
     return confirmacion;
 }

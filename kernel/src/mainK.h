@@ -45,12 +45,21 @@ typedef struct
 //---------------FUNCIONES--------------//
 void* adminIO(void* arg);
 PCB* iniciarProceso(char* nombreArchivo, int tamanioArchivo);
+void planificadorLargoPlazo(t_queue* cola, PCB* nuevoElemento);
+void planificadorCortoPlazo(t_queue* cola, PCB* nuevoElemento);
+void FIFO(t_queue* cola, PCB* nuevoElemento);
+bool consultarEntradaProceso(PCB* proceso);
 
 //---------------SYSCALLS---------------//
-
+void INIT_PROC(char* nombreArchivo, int tamanioArchivo);
+void EXIT(PCB* proceso);
+void DUMP_MEMORY(PCB* proceso);
+void IO(PCB* proceso, char* dispositivo, int duracion, int orden);
 
 //----------VARIABLES GLOBALES----------//
-extern int IDCPUs[4];
+extern sem_t mutIn1;
+extern sem_t mutIn2;
+extern sem_t mutIn3;
 
 extern hilosDispositivos dispositivos[10];
 extern t_queue* bloqPorIO[10];

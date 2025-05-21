@@ -39,15 +39,28 @@ int conectarDispositivo(char *ip, char* puerto)
 
 void enviarHandshakeIO(int conexion, char* dispositivo)
 {
-	send(conexion, dispositivo, sizeof(dispositivo), 0);
+	handshake* hs = malloc(sizeof(handshake));
+	hs->size = strlen(dispositivo)+1;
+	hs->nombre = malloc(hs->size);
+	memcpy(hs->nombre, dispositivo, hs->size);
+
+	//Extraido del tp0
+	void* magic = malloc(hs->size + sizeof(int));
+	int desplazamiento = 0;
+	memcpy(magic + desplazamiento, &(hs->size), sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(magic + desplazamiento, hs->nombre, hs->size);
+	desplazamiento+= hs->size;
+
+	send(conexion, magic, hs->size + sizeof(int), 0);
 }
 
 paqueteOrden* esperarRespuestaIO(int conexion, t_log* logger)
 {
-	paqueteOrden* orden = malloc(sizeof(paqueteOrden));
+	paqueteOrden* orden = malloc(3*sizeof(int));
 	orden->orden = -1;
 	while(orden->orden < 1){
-		recv(conexion, &orden, sizeof(paqueteOrden), MSG_WAITALL);
+		recv(conexion, &orden, 3*sizeof(int), MSG_WAITALL);
 		if(orden->orden < 1){
 			log_info(logger, "Orden desconocida");
 		}

@@ -5,7 +5,7 @@ void* administradorIO(void* arg)
     paqueteIO* paquete = (paqueteIO*)arg;
     t_log* logger = paquete->logger;
     char* puerto = paquete->puertoIO;
-
+    
 	int socketAbierto = abrirConexion(logger, puerto);
 
     char* dispositivo = "NULL";
@@ -15,7 +15,7 @@ void* administradorIO(void* arg)
         dispositivo = identificarDispositivo(logger, socketIO);
     }
     dispositivos[paquete->pos].nombre = dispositivo;
-
+    sem_post(&mutIn2);
     bool conexion = true;
 
     while(conexion)
@@ -69,8 +69,10 @@ int esperarNuevoDispositivo(t_log* logger, int socketAbierto)
 
 char* identificarDispositivo(t_log* logger, int socketIO)
 {
-    char* dispositivo;
-    int error = recv(socketIO, &dispositivo, sizeof(dispositivo), MSG_WAITALL);
+    int size;
+    int error = recv(socketIO, &size, sizeof(int), MSG_WAITALL);
+    char* dispositivo = malloc(size);
+    recv(socketIO, dispositivo, size, MSG_WAITALL);
     if(error == -1){
         log_error(logger, "Fallo al identificar el dispositivo");
         return "NULL";
@@ -83,7 +85,7 @@ char* identificarDispositivo(t_log* logger, int socketIO)
 
 void enviarOrden(t_log* logger, int socketIO, int pos)
 {
-    send(socketIO, procesoIO[pos], sizeof(paqueteOrden), 0);
+    send(socketIO, procesoIO[pos], 3*sizeof(int), 0);
 }
 
 bool recibirConfirmacion(t_log* logger, int socketIO, char* dispositivo)

@@ -11,6 +11,7 @@
 #include <commons/string.h>
 #include <commons/config.h>
 
+#include <auxFunctions.h>
 
 //----------------STRUCT----------------//
 typedef struct
@@ -19,6 +20,12 @@ typedef struct
     int orden;
     int PID;
 } paqueteOrden;
+
+typedef struct
+{
+    int size;
+    void* nombre;
+} handshake;
 
 //---------------FUNCIONES--------------//
 int conexionKernel(char* dispositivo, t_log* logger, t_config* IOconfig);

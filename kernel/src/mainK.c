@@ -2,8 +2,11 @@
 
 // los free() quizas causen problemas
 
+sem_t mutIn1;
+sem_t mutIn2;
+sem_t mutIn3;
+
 pthread_t CPUs[4];
-int IDCPUs[4];
 
 pthread_t IOs[10];
 pthread_t mainIO;
@@ -26,7 +29,7 @@ t_queue* colaSUSPREADY;
 t_config* Kconfig;
 t_log* logger;
 
-int main(void) 
+int main(int tamanioArchivoInicial, char* archivoInicial) 
 {
 	//-----------------Set Up-----------------//
 	Kconfig = config_create("kernel.config");
@@ -38,6 +41,9 @@ int main(void)
 	colaSUSPREADY = queue_create();
 	procesosIniciados = 0;
 
+	sem_init(&mutIn1, 0, 1);
+	sem_init(&mutIn2, 0, 0);
+
 	//CPU
 	char* puertoCPU1 = config_get_string_value(Kconfig, "PUERTO_ESCUCHA_DISPATCH");
 	char* puertoCPU2 = config_get_string_value(Kconfig, "PUERTO_ESCUCHA_INTERRUPT");
@@ -45,12 +51,18 @@ int main(void)
 	variablesHilo->logger = logger;
 	int f1;
 	for(f1=0; f1<4; f1++){
+		sem_wait(&mutIn1);
 		variablesHilo->puertoOrdenes = ajustarPuerto(puertoCPU1,f1);
 		variablesHilo->puertoInterrupciones = ajustarPuerto(puertoCPU2,f1);
+
+		log_info(logger, variablesHilo->puertoOrdenes);
+
 		pthread_create(&CPUs[f1], NULL, administradorCPU, variablesHilo);
 		pthread_detach(CPUs[f1]);
 	}
 	free(variablesHilo);
+	sem_wait(&mutIn1);
+	
 
 	//IO
 	paqueteIO* paqueteMain = malloc(sizeof(paqueteIO));
@@ -60,7 +72,6 @@ int main(void)
 	sem_init(&contadorDispositivos, 0, 10);
 	pthread_create(&mainIO, NULL, adminIO, paqueteMain);
 	pthread_detach(mainIO);
-	free(paqueteMain);
 
 	int f2;
 	for(f2=0; f2<10; f2++){
@@ -71,10 +82,11 @@ int main(void)
 	}
 	//---------------------------------------//
 	
+	readline(">");
 	log_info(logger, "Iniciando Kernel...");
 
-	char* archivoInicial;
-	int tamanioArchivoInicial;
+	//INIT_PROC(archivoInicial, tamanioArchivoInicial);
+
 
 	
 
@@ -84,7 +96,6 @@ int main(void)
 	/*
 	Quehaceres:
 		-checkear que le envia el cpu al kernel para iniciar un proceso
-		-realizar las syscalls
 		-logs obligatorios
 		-semaforos para sincronizar (y bloquear?) procesos
 	*/
@@ -96,6 +107,7 @@ int main(void)
 	//-----------------Liberacion de memoria-----------------//
 	log_info(logger, "Finalizando Kernel...");
 	log_destroy(logger);
+	free(paqueteMain);
 	//sem_destroy(& );
 
 	return EXIT_SUCCESS;
@@ -127,6 +139,7 @@ void* adminIO(void* arg)
 
 		pthread_create(&IOs[pos], NULL, administradorIO, paqueteDisp);
 		pthread_detach(IOs[pos]);
+		sem_wait(&mutIn2);
 		free(paqueteDisp);
 	}
 }
@@ -179,7 +192,8 @@ void FIFO(t_queue* cola, PCB* nuevoElemento)
 	queue_push(cola, nuevoElemento);
 }
 
-bool consultarEntradaProceso(PCB* proceso){
+bool consultarEntradaProceso(PCB* proceso)
+{
 	PaqueteProceso* paqueteMemoria = malloc(sizeof(PaqueteProceso));
 	paqueteMemoria->orden = 0;
 	paqueteMemoria->tamañoArchivo = proceso->size;
@@ -307,63 +321,3 @@ void IO(PCB* proceso, char* dispositivo, int duracion, int orden)
 	}
 	else{EXIT(proceso);}
 }
-
-
-
-
-
-
-
-
-/*
-"Proceso pasa a estado EXEC"
-ejecutarProceso()
-
-
-
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-void leerComando(t_log* logger)
-{
-	char* leido;
-	leido = readline(">");
-	switch (*leido) {
-	case 'i':
-		log_info(logger, "I/O");
-		free(leido);
-		conexionServidor('k','i');
-		break;	
-	case 'm':
-		log_info(logger, "Memoria");
-		free(leido);
-		conexionCliente('k','m');
-		break;
-	case 'c':
-		log_info(logger, "CPU");
-		free(leido);
-		conexionServidor('k','c');
-		break;
-	default:
-		log_info(logger, "Comando desconocido");
-		free(leido);
-
-		break;
-	}
-}
-*/
