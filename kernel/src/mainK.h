@@ -57,9 +57,14 @@ void DUMP_MEMORY(PCB* proceso);
 void IO(PCB* proceso, char* dispositivo, int duracion, int orden);
 
 //----------VARIABLES GLOBALES----------//
-extern sem_t mutIn1;
 extern sem_t mutIn2;
 extern sem_t mutIn3;
+
+extern PCB procesosActivos[4];
+extern sem_t semCPUS[4];
+extern sem_t semCPUI[4];
+extern sem_t semCPUF[4];
+extern int SYSCALL[4];
 
 extern hilosDispositivos dispositivos[10];
 extern t_queue* bloqPorIO[10];

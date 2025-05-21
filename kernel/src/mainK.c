@@ -2,12 +2,23 @@
 
 // los free() quizas causen problemas
 
+//Semaforos de set up
 sem_t mutIn1;
 sem_t mutIn2;
 sem_t mutIn3;
 
+//Variables de CPU
 pthread_t CPUs[4];
+pthread_t CPUHandlers[4];
+sem_t semCPUS[4];
+sem_t semCPUI[4];
+sem_t semCPUF[4];
+PCB procesosActivos[4];
+bool CPUenUso[4];
+sem_t contadorCPU;
+int SYSCALL[4];
 
+//Variables de IO
 pthread_t IOs[10];
 pthread_t mainIO;
 hilosDispositivos dispositivos[10];
@@ -18,14 +29,17 @@ paqueteOrden* procesoIO[10];
 sem_t contadorDispositivos;
 sem_t mutexIO[10];
 
+//Planificador
 int planificadorLargo; //0=FIFO / 1=SJF
 bool planificadorCorto;	//0=FIFO / 1=SJF(sin) / 2=SJF(con)
 int procesosIniciados;
 
+//Colas
 t_queue* colaNEW;
 t_queue* colaREADY;
 t_queue* colaSUSPREADY;
 
+//Micelanios
 t_config* Kconfig;
 t_log* logger;
 
@@ -59,9 +73,15 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 
 		pthread_create(&CPUs[f1], NULL, administradorCPU, variablesHilo);
 		pthread_detach(CPUs[f1]);
+		pthread_create(&CPUHandlers[f1], NULL, adminCPU, f1);
+		pthread_detach(CPUHandlers[f1]);
+		sem_init(&semCPUS[f1], 0, 0);
+		sem_init(&semCPUI[f1], 0, 1);
+		sem_init(&semCPUF[f1], 0, 1);
 	}
 	free(variablesHilo);
 	sem_wait(&mutIn1);
+	sem_init(&contadorCPU, 0, 4);
 	
 
 	//IO
@@ -84,25 +104,25 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 	
 	readline(">");
 	log_info(logger, "Iniciando Kernel...");
-
-	//INIT_PROC(archivoInicial, tamanioArchivoInicial);
-
-
 	
+	INIT_PROC(archivoInicial, tamanioArchivoInicial);
 
-	
+	while(on)
+	{
+		sem_wait(&contadorCPU);
+		//PCB* proceso = seleccionarProcesoEnEspera();
+		int CPUpos = seleccionarCPU();
+		procesosActivos[CPUpos] = proceso;
+		sem_post(&semCPUS[CPUpos]);
+	}
 
-	
 	/*
 	Quehaceres:
-		-checkear que le envia el cpu al kernel para iniciar un proceso
 		-logs obligatorios
 		-semaforos para sincronizar (y bloquear?) procesos
-	*/
-
-
-
-	
+		-liberar memoria
+		-estados de procesos
+	*/	
 
 	//-----------------Liberacion de memoria-----------------//
 	log_info(logger, "Finalizando Kernel...");
@@ -115,6 +135,38 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 
 
 //-----------------------------FUNCIONES-----------------------------//
+void* adminCPU(void* arg)
+{
+	int id = *(int*)arg;
+	sem_post(&mutIn1);
+
+	while(true)
+	{
+		sem_wait(&semCPUS[id]);
+		sem_post(&semCPUI[id]);
+		bool ejecucion = true;
+		while(ejecucion)
+		{
+			sem_wait(&semCPUF[id]);
+			//ejecucion = ejecutarSYSCALL(SYSCALL[id]);
+			//enviarResultadoAAdmin();
+			sem_post(&semCPUI[id]);
+		}
+		CPUenUso[id]=false;
+		sem_post(&contadorCPU);
+	}
+}
+
+int seleccionarCPU()
+{
+	for(int f=0; f<4; f++){
+		if(CPUenUso[f]!=true){
+			CPUenUso[f]=true;
+			return f;
+		}
+	}
+}
+
 void* adminIO(void* arg)
 {
 	paqueteIO* paqueteMain = (paqueteIO*)arg;
@@ -199,7 +251,7 @@ bool consultarEntradaProceso(PCB* proceso)
 	paqueteMemoria->tamañoArchivo = proceso->size;
 	paqueteMemoria->PID = proceso->PID;
 	int confirmacion = consultaMemoria(logger, Kconfig, paqueteMemoria);
-	//free(&PaqueteProceso);
+	free(&paqueteMemoria);
 	if(confirmacion==0){
 		return true;
 	}else{

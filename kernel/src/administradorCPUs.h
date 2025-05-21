@@ -24,6 +24,12 @@ typedef struct
     t_log* logger;
 } paqueteCPU;
 
+typedef struct 
+{
+    int PID;
+    int PC;
+} paqueteDatos;
+
 //---------------FUNCIONES--------------//
 void* administradorCPU(void* arg);
 int abrirSocket(char *puerto);

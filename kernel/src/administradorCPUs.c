@@ -3,7 +3,6 @@
 void* administradorCPU(void* arg)
 {
 	paqueteCPU* paquete = (paqueteCPU*)arg;
-	sem_post(&mutIn1);
 	t_log* logger = paquete->logger;
     const char* puertoOrdenes = paquete->puertoOrdenes;
     const char* puertoInterrupcciones = paquete->puertoInterrupciones;
@@ -21,7 +20,22 @@ void* administradorCPU(void* arg)
 	bool on = true;
 	while(on)
 	{
-
+		sem_wait(&semCPUI[idCPU]);
+		paqueteDatos* datos = malloc(sizeof(paqueteDatos));
+		datos->PID = procesosActivos[idCPU];
+		datos->PC = procesosActivos[idCPU];
+		//enviarProcesoACPU(socketOrdenes,datos);
+		//esperarConfirmacion(socketOrdenes);
+		//actualizarPCB(procesosActivos[idCPU]);
+		bool ejecucion = true;
+		while(ejecucion)
+		{
+			//SYSCALL[idCPU] = esperarSYSCALL()
+			sem_post(&semCPUF[idCPU]);
+			sem_wait(&semCPUI[idCPU]);
+			//ejecucion = recibirResultadoMain()
+			//enviarRespuestaCPU(socketOrdenes);
+		}
 	}
     
 
