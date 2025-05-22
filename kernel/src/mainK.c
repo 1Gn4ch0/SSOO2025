@@ -16,7 +16,8 @@ sem_t semCPUF[4];
 PCB procesosActivos[4];
 bool CPUenUso[4];
 sem_t contadorCPU;
-int SYSCALL[4];
+paqueteSYSCALL* SYSCALL[4];
+bool ejecucion[4];
 
 //Variables de IO
 pthread_t IOs[10];
@@ -144,12 +145,11 @@ void* adminCPU(void* arg)
 	{
 		sem_wait(&semCPUS[id]);
 		sem_post(&semCPUI[id]);
-		bool ejecucion = true;
+		ejecucion[id] = true;
 		while(ejecucion)
 		{
 			sem_wait(&semCPUF[id]);
-			//ejecucion = ejecutarSYSCALL(SYSCALL[id]);
-			//enviarResultadoAAdmin();
+			ejecucion = ejecutarSYSCALL(SYSCALL[id]); //ajustar ejecutarSYSCALL
 			sem_post(&semCPUI[id]);
 		}
 		CPUenUso[id]=false;
@@ -165,6 +165,31 @@ int seleccionarCPU()
 			return f;
 		}
 	}
+}
+
+bool ejecutarSYSCALL(paqueteSYSCALL* ordenSYS, int idCPU)
+{
+	switch (ordenSYS->orden){
+	case 0:
+		INIT_PROC(ordenSYS->tamArch0dur, ordenSYS->tamArch0dur);
+		return true;
+	break;
+	case 1:
+		IO(procesosActivos[idCPU], ordenSYS->arch0disp, ordenSYS->tamArch0dur, 0);
+		return true;
+	break;
+	case 2:
+		DUMP_MEMORY(procesosActivos[idCPU]);
+		return true;
+	break;
+	case 3:
+		EXIT(procesosActivos[idCPU]);
+		return false;
+	break;
+	default:
+		log_error(logger,"ID de SYSCALL desconocida");
+		return false;
+	break;}
 }
 
 void* adminIO(void* arg)
@@ -254,7 +279,6 @@ bool consultarEntradaProceso(PCB* proceso)
 	paqueteMemoria->sizeNombre = strlen(proceso->name)+1;
 	paqueteMemoria->nombreArchivo = malloc(paqueteMemoria->sizeNombre);
 	memcpy(paqueteMemoria->nombreArchivo, proceso->name, paqueteMemoria->sizeNombre);
-
 
 	int confirmacion = consultaMemoria(logger, Kconfig, paqueteMemoria);
 	free(&paqueteMemoria);

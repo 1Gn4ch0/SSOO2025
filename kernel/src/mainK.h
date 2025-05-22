@@ -23,7 +23,7 @@ typedef struct
 	int PID;
 	int PC;
     int ME[7];
-    int MT[7];
+    int MT[7]; //tiempo por estado
     int state; // NEW=0 / READY=1 / EXEC=2 / BLOCKED=3 / SUSPBLOCKED=4 / SUSPREADY=5 / EXIT=6
     int size;
     char* name;
@@ -41,6 +41,14 @@ typedef struct
     int orden;
     int PID;
 } paqueteOrden;
+
+typedef struct
+{
+    int orden; // 0=INIT_PROC / 1=IO / 2=DUMP_MEMORY / 3=EXIT
+    int size; //tamaño del char* arch0disp
+    int tamArch0dur; //tamaño del archivo // duracion de orden a IO
+    char* arch0disp; //nombre del archivo // nombre del dispositivo
+} paqueteSYSCALL;
 
 //---------------FUNCIONES--------------//
 void* adminIO(void* arg);
@@ -64,7 +72,8 @@ extern PCB procesosActivos[4];
 extern sem_t semCPUS[4];
 extern sem_t semCPUI[4];
 extern sem_t semCPUF[4];
-extern int SYSCALL[4];
+extern paqueteSYSCALL* SYSCALL[4];
+extern bool ejecucion[4];
 
 extern hilosDispositivos dispositivos[10];
 extern t_queue* bloqPorIO[10];

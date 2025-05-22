@@ -17,24 +17,28 @@ void* administradorCPU(void* arg)
     int socketInterrupcciones = conectarCPU(socketInterrupccionesAbierto);
     int idCPU = identificarCPU(socketOrdenes);
 
-	bool on = true;
-	while(on)
+	while(true)
 	{
 		sem_wait(&semCPUI[idCPU]);
 		paqueteDatos* datos = malloc(sizeof(paqueteDatos));
 		datos->PID = procesosActivos[idCPU];
 		datos->PC = procesosActivos[idCPU];
-		//enviarProcesoACPU(socketOrdenes,datos);
-		//esperarConfirmacion(socketOrdenes);
-		//actualizarPCB(procesosActivos[idCPU]);
-		bool ejecucion = true;
-		while(ejecucion)
+
+		bool confirmacion = 0;
+		while(confirmacion == 0)
 		{
-			//SYSCALL[idCPU] = esperarSYSCALL()
+			confirmacion = enviarProcesoACPU(socketOrdenes,datos);
+		}
+		procesosActivos[idCPU]->state = 2;
+		procesosActivos[idCPU]->ME[2]++;
+
+		ejecucion[idCPU] = true;
+		while(ejecucion[idCPU])
+		{
+			SYSCALL[idCPU] = esperarSYSCALL(socketOrdenes);
 			sem_post(&semCPUF[idCPU]);
 			sem_wait(&semCPUI[idCPU]);
-			//ejecucion = recibirResultadoMain()
-			//enviarRespuestaCPU(socketOrdenes);
+			enviarRespuestaCPU(socketOrdenes);
 		}
 	}
     
@@ -81,3 +85,27 @@ int identificarCPU(int socketCPU)
 	recv(socketCPU, &id, sizeof(int32_t), MSG_WAITALL);
 	return id;
 }	
+
+int enviarProcesoACPU(int socketOrdenes, paqueteDatos* datos)
+{
+	int confirmacion;
+	send(socketOrdenes, datos, 2*sizeof(int), 0);
+	recv(socketOrdenes, &confirmacion, sizeof(int), MSG_WAITALL);
+	return confirmacion;
+}
+
+int esperarSYSCALL(int socketOrdenes)
+{
+	paqueteSYSCALL* paqCALL = malloc(paqueteSYSCALL);
+	recv(socketOrdenes, &(paqCALL->orden), sizeof(int), MSG_WAITALL);
+	recv(socketOrdenes, &(paqCALL->size), sizeof(int), MSG_WAITALL);
+	recv(socketOrdenes, &(paqCALL->tamArch0dur), sizeof(int), MSG_WAITALL);
+	paqCALL->arch0disp = malloc(paqCALL->size);
+	recv(socketOrdenes, paqCALL->arch0disp, paqCALL->size, MSG_WAITALL);
+	return paqCALL;
+}
+
+void enviarRespuestaCPU(int socketOrdenes)
+{
+	send(socketOrdenes, 1, sizeof(int), 0);
+}
