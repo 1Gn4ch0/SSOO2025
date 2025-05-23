@@ -7,6 +7,7 @@
 #include <readline/readline.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <netdb.h>
 
 #include <commons/log.h>
 #include <commons/config.h>
@@ -51,6 +52,10 @@ typedef struct
 } paqueteSYSCALL;
 
 //---------------FUNCIONES--------------//
+void* adminCPU(void* arg);
+int seleccionarCPU();
+bool ejecutarSYSCALL(paqueteSYSCALL* ordenSYS, int idCPU);
+PCB* seleccionarProcesoEnEspera();
 void* adminIO(void* arg);
 PCB* iniciarProceso(char* nombreArchivo, int tamanioArchivo);
 void planificadorLargoPlazo(t_queue* cola, PCB* nuevoElemento);
@@ -60,15 +65,15 @@ bool consultarEntradaProceso(PCB* proceso);
 
 //---------------SYSCALLS---------------//
 void INIT_PROC(char* nombreArchivo, int tamanioArchivo);
-void EXIT(PCB* proceso);
-void DUMP_MEMORY(PCB* proceso);
-void IO(PCB* proceso, char* dispositivo, int duracion, int orden);
+void EXIT(int idCPU);
+void DUMP_MEMORY(int idCPU);
+void IO(char* dispositivo, int duracion, int orden, int idCPU);
 
 //----------VARIABLES GLOBALES----------//
 extern sem_t mutIn2;
 extern sem_t mutIn3;
 
-extern PCB procesosActivos[4];
+extern PCB* procesosActivos[4];
 extern sem_t semCPUS[4];
 extern sem_t semCPUI[4];
 extern sem_t semCPUF[4];

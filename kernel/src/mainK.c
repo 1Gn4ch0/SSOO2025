@@ -13,7 +13,7 @@ pthread_t CPUHandlers[4];
 sem_t semCPUS[4];
 sem_t semCPUI[4];
 sem_t semCPUF[4];
-PCB procesosActivos[4];
+PCB* procesosActivos[4];
 bool CPUenUso[4];
 sem_t contadorCPU;
 paqueteSYSCALL* SYSCALL[4];
@@ -44,7 +44,7 @@ t_queue* colaSUSPREADY;
 t_config* Kconfig;
 t_log* logger;
 
-int main(int tamanioArchivoInicial, char* archivoInicial) 
+int main(int tamanioArchivoInicial, char** archivoInicial) 
 {
 	//-----------------Set Up-----------------//
 	Kconfig = config_create("kernel.config");
@@ -74,7 +74,7 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 
 		pthread_create(&CPUs[f1], NULL, administradorCPU, variablesHilo);
 		pthread_detach(CPUs[f1]);
-		pthread_create(&CPUHandlers[f1], NULL, adminCPU, f1);
+		pthread_create(&CPUHandlers[f1], NULL, adminCPU, &f1);
 		pthread_detach(CPUHandlers[f1]);
 		sem_init(&semCPUS[f1], 0, 0);
 		sem_init(&semCPUI[f1], 0, 1);
@@ -106,23 +106,28 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 	readline(">");
 	log_info(logger, "Iniciando Kernel...");
 	
-	INIT_PROC(archivoInicial, tamanioArchivoInicial);
+	INIT_PROC(*archivoInicial, tamanioArchivoInicial);
 
-	while(on)
+	while(true)
 	{
-		sem_wait(&contadorCPU);
-		//PCB* proceso = seleccionarProcesoEnEspera();
-		int CPUpos = seleccionarCPU();
-		procesosActivos[CPUpos] = proceso;
-		sem_post(&semCPUS[CPUpos]);
+		sem_wait(&contadorCPU); //espera a que haya un cpu libre
+		PCB* proceso;
+		proceso->PID = -1;
+		while(proceso->PID = -1){
+			proceso = seleccionarProcesoEnEspera(); //selecciona un proceso en espera
+		}
+		int CPUpos = seleccionarCPU(); //celecciona el id de un cpu libre
+		procesosActivos[CPUpos] = proceso; //pone el proceso en espera en activo para su uso compartido
+		sem_post(&semCPUS[CPUpos]); //envia señal a adminCPU para iniciar la ejecucion
 	}
 
 	/*
 	Quehaceres:
+		-planificador mediano plazo (procesos bloqueados)
 		-logs obligatorios
 		-semaforos para sincronizar (y bloquear?) procesos
 		-liberar memoria
-		-estados de procesos
+		-tiempo de estados de procesos
 	*/	
 
 	//-----------------Liberacion de memoria-----------------//
@@ -138,21 +143,21 @@ int main(int tamanioArchivoInicial, char* archivoInicial)
 //-----------------------------FUNCIONES-----------------------------//
 void* adminCPU(void* arg)
 {
-	int id = *(int*)arg;
-	sem_post(&mutIn1);
+	int id = *(int*)arg; //id del cpu administrado
+	sem_post(&mutIn1); //semaforo para el setup
 
 	while(true)
 	{
-		sem_wait(&semCPUS[id]);
-		sem_post(&semCPUI[id]);
-		ejecucion[id] = true;
-		while(ejecucion)
+		sem_wait(&semCPUS[id]); //espera recibir un nuevo proceso del main
+		sem_post(&semCPUI[id]); //le envia la señal al administradorCPU para arrancar la ejecucion
+		ejecucion[id] = true; //asegura la ejecucion actual del proceso, en caso de que el proceso termine o sea bloqueado, pasara a false
+		while(ejecucion[id])
 		{
-			sem_wait(&semCPUF[id]);
-			ejecucion = ejecutarSYSCALL(SYSCALL[id]); //ajustar ejecutarSYSCALL
+			sem_wait(&semCPUF[id]); //espera que administradorCPU reciva una SYSCALL
+			ejecucion[id] = ejecutarSYSCALL(SYSCALL[id], id);
 			sem_post(&semCPUI[id]);
 		}
-		CPUenUso[id]=false;
+		CPUenUso[id]=false; //avisa que el cpu ya no esta en uso
 		sem_post(&contadorCPU);
 	}
 }
@@ -165,6 +170,7 @@ int seleccionarCPU()
 			return f;
 		}
 	}
+	return -1;
 }
 
 bool ejecutarSYSCALL(paqueteSYSCALL* ordenSYS, int idCPU)
@@ -175,21 +181,57 @@ bool ejecutarSYSCALL(paqueteSYSCALL* ordenSYS, int idCPU)
 		return true;
 	break;
 	case 1:
-		IO(procesosActivos[idCPU], ordenSYS->arch0disp, ordenSYS->tamArch0dur, 0);
+		IO(ordenSYS->arch0disp, ordenSYS->tamArch0dur, 0, idCPU);
 		return true;
 	break;
 	case 2:
-		DUMP_MEMORY(procesosActivos[idCPU]);
+		DUMP_MEMORY(idCPU);
 		return true;
 	break;
 	case 3:
-		EXIT(procesosActivos[idCPU]);
+		EXIT(idCPU);
 		return false;
 	break;
 	default:
 		log_error(logger,"ID de SYSCALL desconocida");
 		return false;
 	break;}
+}
+
+PCB* seleccionarProcesoEnEspera()
+{ //prioridad READY -> SUSPREADY -> NEW
+	if(queue_is_empty(colaREADY) == false)
+	{
+		PCB* procesoTemp = queue_peek(colaREADY);
+		queue_pop(colaREADY);
+		return procesoTemp;
+	}
+	else{
+		if(queue_is_empty(colaSUSPREADY) == false)
+		{
+			PCB* procesoTemp = queue_peek(colaSUSPREADY);
+			queue_pop(colaSUSPREADY);
+			procesoTemp->state = 1;
+			procesoTemp->ME[1]++;
+			//log_info(logger, construirLog(string_aitoa(procesoTemp->PID), "/Pasa de estado SUSPREADY al estado READY"));
+			return procesoTemp;
+		}
+		else{
+			bool entraProNuevo = consultarEntradaProceso(queue_peek(colaNEW));
+			if(entraProNuevo){
+				PCB* procesoTemp = queue_peek(colaNEW);
+				queue_pop(colaNEW);
+				procesoTemp->state = 1;
+				procesoTemp->ME[1]++;
+				//log_info(logger, construirLog(string_aitoa(procesoTemp->PID), "/Pasa de estado NEW al estado READY"));
+				return procesoTemp;
+			}else{
+				PCB* procesoMock;
+				procesoMock->PID = -1;
+				return procesoMock;
+			}
+		}
+	}
 }
 
 void* adminIO(void* arg)
@@ -230,6 +272,7 @@ PCB* iniciarProceso(char* nombreArchivo, int tamanioArchivo)
 		procesoNuevo->ME[f] = 0;
 		procesoNuevo->MT[f] = 0;
 	}
+	procesoNuevo->ME[0]++;
 	procesoNuevo->state = 0;
 	procesoNuevo->size = tamanioArchivo;
 	procesoNuevo->name = nombreArchivo;
@@ -294,60 +337,37 @@ bool consultarEntradaProceso(PCB* proceso)
 void INIT_PROC(char* nombreArchivo, int tamanioArchivo)
 {
 	PCB* procesoNuevo = iniciarProceso(nombreArchivo,tamanioArchivo);
+	//log_info(logger, construirLog(string_aitoa(procesoNuevo->PID), "/Se crea el proceso - Estado: NEW"));
 	if(queue_is_empty(colaNEW)){
 		bool confirmacion = consultarEntradaProceso(procesoNuevo);
 		if(confirmacion){
 			procesoNuevo->state = 1;
 			procesoNuevo->ME[1]++;
+			//log_info(logger, construirLog(string_aitoa(procesoNuevo->PID), "/Pasa de estado NEW al estado READY"));
 			planificadorCortoPlazo(colaREADY, procesoNuevo);
 		}else{
-			procesoNuevo->state = 0;
-			procesoNuevo->ME[0]++;
 			planificadorLargoPlazo(colaNEW, procesoNuevo);
 		}
 	}else{
-		procesoNuevo->state = 0;
-		procesoNuevo->ME[0]++;
 		planificadorLargoPlazo(colaNEW, procesoNuevo);
 	}
 }
 
-void EXIT(PCB* proceso)
+void EXIT(int idCPU)
 {
-	proceso->state = 6;
-	proceso->ME[6]++;
+	procesosActivos[idCPU]->state = 6;
+	procesosActivos[idCPU]->ME[6]++;
+	//log_info(logger, construirLog(string_aitoa(procesosActivos[idCPU]->PID), "/Pasa de estado EXEC al estado EXIT"));
 
 	int confirmacion = 1;
 	PaqueteProceso* paqueteMemoria = malloc(sizeof(PaqueteProceso));
 	paqueteMemoria->orden = 1;
-	paqueteMemoria->tamañoArchivo = proceso->size;
-	paqueteMemoria->PID = proceso->PID;
+	paqueteMemoria->tamañoArchivo = procesosActivos[idCPU]->size;
+	paqueteMemoria->PID = procesosActivos[idCPU]->PID;
 	while(confirmacion == 1){
 		confirmacion = consultaMemoria(logger, Kconfig, paqueteMemoria);
 		if(confirmacion == 0){
-			free(proceso);
-			if(queue_is_empty(colaSUSPREADY))
-			{
-				bool entraProNuevo = consultarEntradaProceso(queue_peek(colaNEW));
-				if(entraProNuevo){
-					PCB* procesoTemp = queue_peek(colaNEW);
-					queue_pop(colaNEW);
-					procesoTemp->state = 1;
-					procesoTemp->ME[1]++;
-					planificadorCortoPlazo(colaREADY,procesoTemp);
-				}
-			}
-			else
-			{
-				bool entraProSusp = consultarEntradaProceso(queue_peek(colaSUSPREADY));
-				if(entraProSusp){
-					PCB* procesoTemp = queue_peek(colaSUSPREADY);
-					queue_pop(colaSUSPREADY);
-					procesoTemp->state = 1;
-					procesoTemp->ME[1]++;
-					planificadorCortoPlazo(colaREADY,procesoTemp);  //es mediano, esto es un placeholder
-				}
-			}
+			//log_info(logger, construirLog(string_aitoa(procesosActivos[idCPU]->PID), "/Finaliza el proceso"));
 		}
 		else{
 			log_error(logger, "Error al confirmar finalizacion de proceso, reintentando");
@@ -356,26 +376,26 @@ void EXIT(PCB* proceso)
 	free(paqueteMemoria);
 }
 
-void DUMP_MEMORY(PCB* proceso)
+void DUMP_MEMORY(int idCPU)
 {
-	proceso->state = 3;
-	proceso->ME[3]++;
+	procesosActivos[idCPU]->state = 3;
+	procesosActivos[idCPU]->ME[3]++;
 
 	PaqueteProceso* paqueteMemoria = malloc(sizeof(PaqueteProceso));
 	paqueteMemoria->orden = 2;
-	paqueteMemoria->tamañoArchivo = proceso->size;
-	paqueteMemoria->PID = proceso->PID;
+	paqueteMemoria->tamañoArchivo = procesosActivos[idCPU]->size;
+	paqueteMemoria->PID = procesosActivos[idCPU]->PID;
 	int confirmacion = consultaMemoria(logger, Kconfig, paqueteMemoria);
 	if(confirmacion==0){
-		proceso->state = 1;
-		proceso->ME[1]++;
-		planificadorCortoPlazo(colaREADY, proceso); //es mediano, esto es un placeholder
+		procesosActivos[idCPU]->state = 1;
+		procesosActivos[idCPU]->ME[1]++;
+		planificadorCortoPlazo(colaREADY, procesosActivos[idCPU]); //es mediano, esto es un placeholder
 	}else{
-		EXIT(proceso);
+		EXIT(idCPU);
 	}
 }
 
-void IO(PCB* proceso, char* dispositivo, int duracion, int orden)
+void IO(char* dispositivo, int duracion, int orden, int idCPU)
 {
 	int pos = 10;
 	for(int f=0; f<10; f++){
@@ -386,20 +406,28 @@ void IO(PCB* proceso, char* dispositivo, int duracion, int orden)
 	}
 	if(pos =! 10)
 	{
-		proceso->state = 3;
-		proceso->ME[3]++;
-		queue_push(bloqPorIO[pos],proceso);
+		procesosActivos[idCPU]->state = 3;
+		procesosActivos[idCPU]->ME[3]++;
+		//log_info(logger, construirLog(string_aitoa(procesosActivos[idCPU]->PID), "/Pasa de estado EXEC al estado BLOCKED"));
+		queue_push(bloqPorIO[pos],procesosActivos[idCPU]);
+		//log_info(logger, construirLog(construirLog(string_aitoa(procesosActivos[idCPU]->PID), "/Bloqueado por IO: "), dispositivo));
+
 		sem_wait(&mutexIO[pos]);
 		procesoIO[pos]->orden = orden;
 		procesoIO[pos]->duracion = duracion;
-		procesoIO[pos]->PID = proceso->PID;
+		procesoIO[pos]->PID = procesosActivos[idCPU]->PID;
 		sem_post(&semDispoI[pos]);
 		sem_wait(&semDispoF[pos]);
 		sem_post(&mutexIO[pos]);
+
+		procesosActivos[idCPU]->state = 1;
+		procesosActivos[idCPU]->ME[1]++;
 		queue_pop(bloqPorIO[pos]);
+		//log_info(logger, construirLog(string_aitoa(procesosActivos[idCPU]->PID), "/Finalizó IO y pasa a READY"));
+
 		if(dispositivos[pos].enUso == false){
-			EXIT(proceso);
+			EXIT(idCPU);
 		}
 	}
-	else{EXIT(proceso);}
+	else{EXIT(idCPU);}
 }

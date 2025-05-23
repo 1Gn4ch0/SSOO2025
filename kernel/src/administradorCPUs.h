@@ -35,6 +35,9 @@ void* administradorCPU(void* arg);
 int abrirSocket(char *puerto);
 int conectarCPU(int socketCPUabierto);
 int identificarCPU(int socketCPU);
+int enviarProcesoACPU(int socketOrdenes, paqueteDatos* datos);
+struct paqueteSYSCALL* esperarSYSCALL(int socketOrdenes);
+void enviarRespuestaCPU(int socketOrdenes);
 
 
 #endif

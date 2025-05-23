@@ -49,7 +49,6 @@ void enviarConsulta(t_log* logger, int conexion, PaqueteProceso* proceso)
             memcpy(magic + desplazamiento, &(proceso->sizeNombre), sizeof(int));
 	        desplazamiento+= sizeof(int);
             memcpy(magic + desplazamiento, proceso->nombreArchivo, proceso->sizeNombre);
-	        desplazamiento+= paquete->buffer->size;
 
             send(conexion, magic, proceso->sizeNombre + 4*sizeof(int), 0);
         break;

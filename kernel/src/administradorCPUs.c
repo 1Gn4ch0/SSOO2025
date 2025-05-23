@@ -19,7 +19,7 @@ void* administradorCPU(void* arg)
 
 	while(true)
 	{
-		sem_wait(&semCPUI[idCPU]);
+		sem_wait(&semCPUI[idCPU]); //espera el aviso de adminCPU para iniciar
 		paqueteDatos* datos = malloc(sizeof(paqueteDatos));
 		datos->PID = procesosActivos[idCPU];
 		datos->PC = procesosActivos[idCPU];
@@ -27,18 +27,19 @@ void* administradorCPU(void* arg)
 		bool confirmacion = 0;
 		while(confirmacion == 0)
 		{
-			confirmacion = enviarProcesoACPU(socketOrdenes,datos);
+			confirmacion = enviarProcesoACPU(socketOrdenes,datos); //enviar el proceso a CPU y espera su confirmacion
 		}
 		procesosActivos[idCPU]->state = 2;
 		procesosActivos[idCPU]->ME[2]++;
+		//log_info(logger, construirLog(string_aitoa(datos->PID), "/Pasa de estado READY al estado EXEC"));
 
-		ejecucion[idCPU] = true;
+		ejecucion[idCPU] = true; //asegura la ejecucion actual del proceso, en caso de que el proceso termine o sea bloqueado, pasara a false
 		while(ejecucion[idCPU])
 		{
 			SYSCALL[idCPU] = esperarSYSCALL(socketOrdenes);
-			sem_post(&semCPUF[idCPU]);
-			sem_wait(&semCPUI[idCPU]);
-			enviarRespuestaCPU(socketOrdenes);
+			sem_post(&semCPUF[idCPU]); //envia señal a adminCPU para ejecutar la SYSCALL
+			sem_wait(&semCPUI[idCPU]); //espera que se ejecute la SYSCALL
+			enviarRespuestaCPU(socketOrdenes); //envia una confirmacion al CPU
 		}
 	}
     
@@ -94,14 +95,27 @@ int enviarProcesoACPU(int socketOrdenes, paqueteDatos* datos)
 	return confirmacion;
 }
 
-int esperarSYSCALL(int socketOrdenes)
+struct paqueteSYSCALL* esperarSYSCALL(int socketOrdenes)
 {
-	paqueteSYSCALL* paqCALL = malloc(paqueteSYSCALL);
-	recv(socketOrdenes, &(paqCALL->orden), sizeof(int), MSG_WAITALL);
-	recv(socketOrdenes, &(paqCALL->size), sizeof(int), MSG_WAITALL);
-	recv(socketOrdenes, &(paqCALL->tamArch0dur), sizeof(int), MSG_WAITALL);
-	paqCALL->arch0disp = malloc(paqCALL->size);
-	recv(socketOrdenes, paqCALL->arch0disp, paqCALL->size, MSG_WAITALL);
+	int orden;
+	recv(socketOrdenes, &orden, sizeof(int), MSG_WAITALL);
+	int size;
+	recv(socketOrdenes, &size, sizeof(int), MSG_WAITALL);
+	int numero;
+	recv(socketOrdenes, &numero, sizeof(int), MSG_WAITALL);
+	char* texto = malloc(size);
+	recv(socketOrdenes, texto, size, MSG_WAITALL);
+
+	void* paqCALL = malloc(size + 3*sizeof(int));
+	int desplazamiento = 0;
+	memcpy(paqCALL + desplazamiento, &orden, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(paqCALL + desplazamiento, &size, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(paqCALL + desplazamiento, &numero, sizeof(int));
+	desplazamiento+= sizeof(int);
+	memcpy(paqCALL + desplazamiento, texto, size);
+
 	return paqCALL;
 }
 
